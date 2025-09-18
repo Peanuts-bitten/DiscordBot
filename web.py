@@ -150,6 +150,7 @@ def keep_alive():
     t = Thread(target=run, daemon=True)
     t.start()
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     run()
+
 
