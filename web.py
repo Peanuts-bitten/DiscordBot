@@ -1,25 +1,52 @@
-# web.py
-from flask import Flask, request, jsonify
+# web.py -- OAuth + Linked Roles + metadata registration + keep-alive
+from flask import Flask, request, jsonify, redirect
+from threading import Thread
 import requests
 import os
 from dotenv import load_dotenv
-from threading import Thread
 
 load_dotenv()
-
-app = Flask(__name__)
+app = Flask(_name_)
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("DISCORD_TOKEN")
 GUILD_ID = os.getenv("GUILD_ID")
-# replace with your Render url + /callback (or set REDIRECT_URI in .env)
-REDIRECT_URI = os.getenv("REDIRECT_URI", "https://discordbot-d336ne6mcj7s73a42bu0.onrender.com/callback")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "https://your-app.onrender.com/callback")
+
+API = "https://discord.com/api/v10"
+
+# Metadata definitions to register (BOOLEAN_EQUALS type=7)
+METADATA_DEFS = [
+    {"key": "is_owner",  "name": "Owner",     "description": "Owner / Co-Owner / Server Partner", "type": 7},
+    {"key": "is_admin",  "name": "Admin",     "description": "Server Manager / Administrator",     "type": 7},
+    {"key": "is_mod",    "name": "Moderator", "description": "Any moderator role",                 "type": 7},
+    {"key": "is_hoster", "name": "Hoster",    "description": "Giveaway / Hoster team",              "type": 7},
+]
+
+def register_metadata_once():
+    """Register Linked Roles metadata for your application (one-time operation).
+       This uses Bot token to PUT the metadata definitions to Discord.
+       It will silently fail if CLIENT_ID/BOT_TOKEN not set.
+    """
+    if not CLIENT_ID or not BOT_TOKEN:
+        print("CLIENT_ID or BOT_TOKEN not set — skipping metadata registration.")
+        return
+    url = f"{API}/applications/{CLIENT_ID}/role-connections/metadata"
+    headers = {"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"}
+    try:
+        r = requests.put(url, headers=headers, json=METADATA_DEFS, timeout=15)
+        print("Metadata register status:", r.status_code, r.text)
+    except Exception as e:
+        print("Metadata registration failed:", e)
+
+# Register metadata at start (safe to call repeatedly)
+register_metadata_once()
 
 @app.route("/")
 def index():
     if not CLIENT_ID:
-        return "CLIENT_ID not set in .env", 500
+        return "CLIENT_ID not configured in environment.", 500
     oauth_url = (
         "https://discord.com/api/oauth2/authorize"
         f"?client_id={CLIENT_ID}"
@@ -27,16 +54,21 @@ def index():
         f"&response_type=code"
         f"&scope=identify%20role_connections.write%20guilds.members.read"
     )
-    return f'<a href="{oauth_url}">Login with Discord</a>'
+    return f'<a href="{oauth_url}">Login with Discord (Link Roles)</a>'
+
+@app.route("/ping")
+def ping():
+    return jsonify({"status": "ok"}), 200
 
 @app.route("/callback")
 def callback():
+    # OAuth2 callback: exchanges code -> token, inspects user roles and updates role-connection metadata
     code = request.args.get("code")
     if not code:
-        return "No code provided", 400
+        return "Missing 'code' in query string.", 400
 
-    # Exchange code for user token
-    token_url = "https://discord.com/api/oauth2/token"
+    # Exchange code for token
+    token_url = f"{API}/oauth2/token"
     data = {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
@@ -45,79 +77,78 @@ def callback():
         "redirect_uri": REDIRECT_URI,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    r = requests.post(token_url, data=data, headers=headers)
-    if r.status_code != 200:
-        return f"Token exchange failed: {r.status_code} {r.text}", 500
-    token_data = r.json()
+    try:
+        t = requests.post(token_url, data=data, headers=headers, timeout=15)
+    except Exception as e:
+        return f"Token exchange error: {e}", 500
+    if t.status_code != 200:
+        return f"Token exchange failed: {t.status_code} {t.text}", 500
+    token_data = t.json()
     user_token = token_data.get("access_token")
     if not user_token:
-        return "No access token returned", 500
+        return f"No access token returned: {token_data}", 500
 
-    # Get user info
-    me = requests.get("https://discord.com/api/v10/users/@me", headers={"Authorization": f"Bearer {user_token}"})
+    # Get basic user info
+    me = requests.get(f"{API}/users/@me", headers={"Authorization": f"Bearer {user_token}"}, timeout=15)
     if me.status_code != 200:
-        return f"Failed to fetch user info: {me.status_code}", 500
+        return f"Failed to fetch user info: {me.status_code} {me.text}", 500
     user_info = me.json()
     user_id = user_info.get("id")
 
-    # Fetch member roles from guild using bot token
+    # Fetch member from guild using Bot token
     if not BOT_TOKEN or not GUILD_ID:
-        return "BOT_TOKEN or GUILD_ID missing in server config", 500
+        return "BOT_TOKEN or GUILD_ID not configured on server.", 500
 
     member_req = requests.get(
-        f"https://discord.com/api/v10/guilds/{GUILD_ID}/members/{user_id}",
-        headers={"Authorization": f"Bot {BOT_TOKEN}"}
+        f"{API}/guilds/{GUILD_ID}/members/{user_id}",
+        headers={"Authorization": f"Bot {BOT_TOKEN}"},
+        timeout=15
     )
     if member_req.status_code != 200:
-        return f"Failed to fetch member info: {member_req.status_code}", 500
+        return f"Failed to fetch member data: {member_req.status_code} {member_req.text}", 500
     member = member_req.json()
 
-    # Map role IDs -> names
-    roles_req = requests.get(f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles", headers={"Authorization": f"Bot {BOT_TOKEN}"})
+    # Fetch roles to map IDs -> names
+    roles_req = requests.get(f"{API}/guilds/{GUILD_ID}/roles", headers={"Authorization": f"Bot {BOT_TOKEN}"}, timeout=15)
     if roles_req.status_code != 200:
-        return f"Failed to fetch roles: {roles_req.status_code}", 500
+        return f"Failed to fetch roles: {roles_req.status_code} {roles_req.text}", 500
     roles_list = roles_req.json()
     role_map = {r["id"]: r["name"] for r in roles_list}
 
     user_role_names = [role_map.get(rid) for rid in member.get("roles", []) if rid in role_map]
 
-    # Decide metadata flags (adjust role names to match your server)
-    is_owner = any(r in user_role_names for r in ["👑 Owner", "👑 Server Partner", "👑 Co Owner"])
-    is_admin = any(r in user_role_names for r in ["🌸 ๖ۣMighty Children", "Server Manager", "Head administrator", "Administrator"])
-    is_mod = any(r in user_role_names for r in ["Head Moderator", "Senior Moderator", "Moderator", "Junior Moderator"])
-    is_giveaway = "🎉 𝐆𝐢𝐯𝐞𝐚𝐰𝐚𝐲 𝐓𝐞𝐚𝐦" in user_role_names
+    # Determine flags — adjust the names below to exactly match your server role names
+    is_owner  = any(r in user_role_names for r in ["👑 Owner", "👑 Co Owner", "👑 Server Partner"])
+    is_admin  = any(r in user_role_names for r in ["🌸 ๖ۣMighty Children", "Server Manager", "Head administrator", "Administrator"])
+    is_mod    = any(r in user_role_names for r in ["Head Moderator", "Senior Moderator", "Moderator", "Junior Moderator"])
+    is_hoster = any(r in user_role_names for r in ["🎉 𝐆𝐢𝐯𝐞𝐚𝐰𝐚𝐲 𝐓𝐞𝐚𝐦", "Hoster", "Giveaway Team"])
 
     metadata = {
         "platform_name": "My Bot",
         "metadata": {
-            "is_owner": "true" if is_owner else "false",
-            "is_admin": "true" if is_admin else "false",
-            "is_mod": "true" if is_mod else "false",
-            "is_giveaway": "true" if is_giveaway else "false"
+            "is_owner": str(is_owner).lower(),
+            "is_admin": str(is_admin).lower(),
+            "is_mod": str(is_mod).lower(),
+            "is_hoster": str(is_hoster).lower()
         }
     }
 
-    # Update role connection metadata for the user
-    put_url = f"https://discord.com/api/v10/users/@me/applications/{CLIENT_ID}/role-connection"
-    put_resp = requests.put(put_url, json=metadata, headers={"Authorization": f"Bearer {user_token}"})
-
+    # Update role-connection metadata for the user (user must be authenticated)
+    put_url = f"{API}/users/@me/applications/{CLIENT_ID}/role-connection"
+    put_resp = requests.put(put_url, json=metadata, headers={"Authorization": f"Bearer {user_token}"}, timeout=15)
     if put_resp.status_code not in (200, 204):
         return f"Failed to update linked role metadata: {put_resp.status_code} {put_resp.text}", 500
 
     return f"✅ Linked Role metadata updated for {user_info.get('username')}."
 
-# keep-alive helper for Replit/Render
 def run():
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # debug True helps during development; Render will capture logs
+    app.run(host="0.0.0.0", port=port, debug=True)
 
 def keep_alive():
-    t = Thread(target=run)
-    t.daemon = True
+    t = Thread(target=run, daemon=True)
     t.start()
 
-# optional: allow running web.py directly
-if __name__ == "__main__":
+if _name_ == "_main_":
     run()
-
-  
