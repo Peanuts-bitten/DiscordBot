@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-app = Flask(_name_)
+app = Flask(__name__)
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
@@ -152,3 +152,4 @@ def keep_alive():
 
 if _name_ == "_main_":
     run()
+
