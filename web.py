@@ -131,5 +131,6 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     run()
+
