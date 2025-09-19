@@ -192,11 +192,12 @@ client.on('messageCreate', async msg => {
     msg.channel.send(text);
   }
 
-  if (cmd === '!clear') {
-    msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
-    const amount = parseInt(args[0]) || 10;
-    await msg.channel.bulkDelete(amount + 1);
-    msg.channel.send(`Cle
+    if (cmd === '!clear') {
+  if (!msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
+  const amount = parseInt(args[0]) || 10;
+  await msg.channel.bulkDelete(amount + 1);
+  msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
+}
 
     msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
   }
@@ -319,4 +320,5 @@ function endGiveaway(msgId) {
 
 // === [999] 🛡️ Error Handling ===
 process.on('
+
 
