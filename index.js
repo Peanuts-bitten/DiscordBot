@@ -157,7 +157,7 @@ client.on('messageCreate', async msg => {
   const args = msg.content.trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  // === [160–169] Commands ===
+  // === [160] Commands ===
   if (cmd === '!beg') {
     const cd = checkCooldown(msg.author.id, 'beg', 45);
     if (cd > 0) return msg.reply(`⏳ Wait ${cd}s before begging again.`);
@@ -196,35 +196,49 @@ client.on('messageCreate', async msg => {
     if (!msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
     const amount = parseInt(args[0]) || 10;
     await msg.channel.bulkDelete(amount + 1);
-    msg.channel.send(`Cleared ${amount} messages.`
-// === [190] 🎁 Giveaway Ending Logic ===
-function endGiveaway(msgId) {
-  const g = db.prepare("SELECT * FROM giveaways WHERE message_id=?").get(msgId);
-  if (!g) return;
+    msg.channel.send(`Cle
 
-  const channel = client.channels.cache.get(g.channel_id);
-  if (!channel) return;
-
-  const participants = g.participants ? g.participants.split(',') : [];
-  if (participants.length === 0) {
-    channel.send(`🎉 Giveaway ended: **${g.prize}**\nNo valid entries.`);
-  } else {
-    const winners = [];
-    while (winners.length < g.winners && participants.length > 0) {
-      const i = Math.floor(Math.random() * participants.length);
-      winners.push(`<@${participants[i]}>`);
-      participants.splice(i, 1);
-    }
-    channel.send(`🎉 Giveaway ended: **${g.prize}**\nWinners: ${winners.join(', ')}`);
+    msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
   }
 
-  db.prepare("DELETE FROM giveaways WHERE message_id=?").run(msgId);
-}
+  if (cmd === '!meme') {
+    const res = await fetch('https://meme-api.com/gimme');
+    const data = await res.json();
+    msg.channel.send({ embeds: [makeEmbed(data.title, data.url).setImage(data.url)] });
+  }
 
-// === [200] 🎉 Giveaway Creation & Reroll ===
-client.on('messageCreate', async msg => {
-  const args = msg.content.trim().split(/ +/);
-  const cmd = args.shift().toLowerCase();
+  if (cmd === '!roast') {
+    const target = msg.mentions.users.first();
+    if (!target) return msg.reply("Tag someone to roast!");
+    const roasts = [
+      `${target}, you're the reason shampoo has instructions.`,
+      `${target}, if I had a dollar for every smart thing you said, I'd be broke.`,
+      `${target}, you're like a cloud. When you disappear, it's a beautiful day.`
+    ];
+    msg.channel.send(roasts[Math.floor(Math.random() * roasts.length)]);
+  }
+
+  if (cmd === '!8ball') {
+    const question = args.join(' ');
+    if (!question) return msg.reply("Ask a full question!");
+    const reply = eightBallReplies[Math.floor(Math.random() * eightBallReplies.length)];
+    msg.channel.send(`🎱 ${reply}`);
+  }
+
+  if (cmd === '!ban') {
+    const member = msg.mentions.members.first();
+    const durationArg = args[1];
+    const reason = args.slice(2).join(' ') || 'No reason';
+    const duration = parseDuration(durationArg);
+    if (!member || !duration) return msg.reply("Usage: !ban @user 1h Reason");
+    await member.ban({ reason });
+    db.prepare("INSERT OR REPLACE INTO scheduled_unbans VALUES (?, ?, ?)").run(
+      msg.guild.id,
+      member.id,
+      Math.floor(Date.now() / 1000) + duration
+    );
+    msg.channel.send(`${member.user.tag} banned for ${durationArg}. Reason: ${reason}`);
+  }
 
   if (cmd === '!giveaway') {
     const durationArg = args[0];
@@ -259,7 +273,7 @@ client.on('messageCreate', async msg => {
   }
 });
 
-// === [220] 🧷 Giveaway Button Interaction ===
+// === [220] 🎉 Giveaway Button Interaction ===
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
 
@@ -279,14 +293,29 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+// === [230] 🎁 Giveaway Ending Logic ===
+function endGiveaway(msgId) {
+  const g = db.prepare("SELECT * FROM giveaways WHERE message_id=?").get(msgId);
+  if (!g) return;
+
+  const channel = client.channels.cache.get(g.channel_id);
+  if (!channel) return;
+
+  const participants = g.participants ? g.participants.split(',') : [];
+  if (participants.length === 0) {
+    channel.send(`🎉 Giveaway ended: **${g.prize}**\nNo valid entries.`);
+  } else {
+    const winners = [];
+    while (winners.length < g.winners && participants.length > 0) {
+      const i = Math.floor(Math.random() * participants.length);
+      winners.push(`<@${participants[i]}>`);
+      participants.splice(i, 1);
+    }
+    channel.send(`🎉 Giveaway ended: **${g.prize}**\nWinners: ${winners.join(', ')}`);
+  }
+
+  db.prepare("DELETE FROM giveaways WHERE message_id=?").run(msgId);
+}
+
 // === [999] 🛡️ Error Handling ===
-process.on('unhandledRejection', err => {
-  console.error('🔥 Unhandled promise rejection:', err);
-});
-
-process.on('uncaughtException', err => {
-  console.error('💥 Uncaught exception:', err);
-});
-
-// === [1000] 🔑 Bot Login ===
-client.login(process.env.DISCORD_TOKEN);
+process.on('
