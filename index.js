@@ -192,7 +192,7 @@ client.on('messageCreate', async msg => {
     msg.channel.send(text);
   }
 
-    if (cmd === '!clear') {
+if (cmd === '!clear') {
   if (!msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
   const amount = parseInt(args[0]) || 10;
   await msg.channel.bulkDelete(amount + 1);
@@ -326,6 +326,7 @@ process.on('unhandledRejection', err => {
 process.on('uncaughtException', err => {
   console.error('💥 Uncaught exception:', err);
 });
+
 
 
 
