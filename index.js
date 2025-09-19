@@ -157,175 +157,69 @@ client.on('messageCreate', async msg => {
   const args = msg.content.trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  // === [160] Commands ===
-  if (cmd === '!beg') {
-    const cd = checkCooldown(msg.author.id, 'beg', 45);
-    if (cd > 0) return msg.reply(`⏳ Wait ${cd}s before begging again.`);
-    const coins = Math.floor(Math.random() * 50) + 1;
-    db.prepare("UPDATE economy SET wallet = wallet + ? WHERE user_id=?").run(coins, msg.author.id);
-    msg.channel.send(`${msg.author}, someone gave you ${coins} coins. Lucky beggar.`);
-  }
+// === [160] 🧪 Cursed Crafting System ===
+if (cmd === '!craft') {
+  const item1 = args[0];
+  const item2 = args[1];
+  if (!item1 || !item2) return msg.reply("Usage: !craft [item1] [item2]");
 
-  if (cmd === '!work') {
-    const cd = checkCooldown(msg.author.id, 'work', 60);
-    if (cd > 0) return msg.reply(`⏳ Wait ${cd}s before working again.`);
-    const jobs = ["Developer", "Artist", "Chef", "Streamer", "Janitor"];
-    const job = jobs[Math.floor(Math.random() * jobs.length)];
-    const coins = Math.floor(Math.random() * 100) + 50;
-    db.prepare("UPDATE economy SET wallet = wallet + ? WHERE user_id=?").run(coins, msg.author.id);
-    msg.channel.send(`${msg.author}, you worked as a ${job} and earned ${coins} coins.`);
-  }
+  const combo = `${item1}+${item2}`;
+  const cursedResults = {
+    "Golden Banana+Cursed Sock": "Banana Sock of Shame",
+    "Epic Sandwich+Mystery Box": "Lunchbox of Chaos",
+    "Cursed Sock+Mystery Box": "Unholy Bundle"
+  };
 
-  if (cmd === '!balance') {
-    const bal = db.prepare("SELECT wallet, bank FROM economy WHERE user_id=?").get(msg.author.id);
-    msg.channel.send(`${msg.author} — Wallet: ${bal.wallet} | Bank: ${bal.bank}`);
-  }
-
-  if (cmd === '!rank') {
-    const lvl = db.prepare("SELECT xp, level FROM levels WHERE user_id=? AND guild_id=?").get(msg.author.id, msg.guild.id);
-    msg.channel.send(`${msg.author} — Level ${lvl.level} (${lvl.xp} XP)`);
-  }
-
-  if (cmd === '!say') {
-    const text = args.join(' ');
-    await msg.delete();
-    msg.channel.send(text);
-  }
-
-if (cmd === '!clear') {
-  if (!msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
-  const amount = parseInt(args[0]) || 10;
-  await msg.channel.bulkDelete(amount + 1);
-  msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
+  const result = cursedResults[combo] || "Pile of Useless Junk";
+  addItem(msg.author.id, result);
+  msg.channel.send(`${msg.author} crafted a **${result}** from ${item1} and ${item2}.`);
 }
 
+// === [161] 📈 Parody Stock Market ===
+const stocks = {
+  "MEME": { price: Math.floor(Math.random() * 100) + 100 },
+  "CHAOS": { price: Math.floor(Math.random() * 200) + 50 },
+  "BOTCOIN": { price: Math.floor(Math.random() * 500) + 10 }
+};
 
-  if (cmd === '!meme') {
-    const res = await fetch('https://meme-api.com/gimme');
-    const data = await res.json();
-    msg.channel.send({ embeds: [makeEmbed(data.title, data.url).setImage(data.url)] });
-  }
-
-  if (cmd === '!roast') {
-    const target = msg.mentions.users.first();
-    if (!target) return msg.reply("Tag someone to roast!");
-    const roasts = [
-      `${target}, you're the reason shampoo has instructions.`,
-      `${target}, if I had a dollar for every smart thing you said, I'd be broke.`,
-      `${target}, you're like a cloud. When you disappear, it's a beautiful day.`
-    ];
-    msg.channel.send(roasts[Math.floor(Math.random() * roasts.length)]);
-  }
-
-  if (cmd === '!8ball') {
-    const question = args.join(' ');
-    if (!question) return msg.reply("Ask a full question!");
-    const reply = eightBallReplies[Math.floor(Math.random() * eightBallReplies.length)];
-    msg.channel.send(`🎱 ${reply}`);
-  }
-
-  if (cmd === '!ban') {
-    const member = msg.mentions.members.first();
-    const durationArg = args[1];
-    const reason = args.slice(2).join(' ') || 'No reason';
-    const duration = parseDuration(durationArg);
-    if (!member || !duration) return msg.reply("Usage: !ban @user 1h Reason");
-    await member.ban({ reason });
-    db.prepare("INSERT OR REPLACE INTO scheduled_unbans VALUES (?, ?, ?)").run(
-      msg.guild.id,
-      member.id,
-      Math.floor(Date.now() / 1000) + duration
-    );
-    msg.channel.send(`${member.user.tag} banned for ${durationArg}. Reason: ${reason}`);
-  }
-
-  if (cmd === '!giveaway') {
-    const durationArg = args[0];
-    const winnerCount = parseInt(args[1]);
-    const prize = args.slice(2).join(' ');
-    const duration = parseDuration(durationArg);
-    if (!duration || !winnerCount || !prize) return msg.reply("Usage: !giveaway 1h 2 Cool Prize");
-
-    const embed = makeEmbed("🎉 Giveaway", `Prize: **${prize}**\nHosted by: ${msg.author}\nEnds in: ${durationArg}`);
-    const button = new ButtonBuilder().setCustomId(`give_${msg.id}`).setLabel("Enter").setStyle(ButtonStyle.Success);
-    const row = new ActionRowBuilder().addComponents(button);
-    const giveawayMsg = await msg.channel.send({ embeds: [embed], components: [row] });
-
-    db.prepare("INSERT INTO giveaways VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
-      giveawayMsg.id,
-      msg.channel.id,
-      msg.guild.id,
-      msg.author.id,
-      prize,
-      Math.floor(Date.now() / 1000) + duration,
-      winnerCount,
-      ''
-    );
-
-    setTimeout(() => endGiveaway(giveawayMsg.id), duration * 1000);
-  }
-
-  if (cmd === '!reroll') {
-    const msgId = args[0];
-    if (!msgId) return msg.reply("Usage: !reroll [messageID]");
-    endGiveaway(msgId);
-  }
-});
-
-// === [220] 🎉 Giveaway Button Interaction ===
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isButton()) return;
-
-  if (interaction.customId.startsWith('give_')) {
-    const msgId = interaction.customId.split('_')[1];
-    const g = db.prepare("SELECT * FROM giveaways WHERE message_id=?").get(msgId);
-    if (!g) return interaction.reply({ content: "Giveaway not found.", ephemeral: true });
-
-    const participants = g.participants ? g.participants.split(',') : [];
-    if (participants.includes(interaction.user.id)) {
-      return interaction.reply({ content: "You've already entered!", ephemeral: true });
-    }
-
-    participants.push(interaction.user.id);
-    db.prepare("UPDATE giveaways SET participants=? WHERE message_id=?").run(participants.join(','), msgId);
-    interaction.reply({ content: "🎉 You're in!", ephemeral: true });
-  }
-});
-
-// === [230] 🎁 Giveaway Ending Logic ===
-function endGiveaway(msgId) {
-  const g = db.prepare("SELECT * FROM giveaways WHERE message_id=?").get(msgId);
-  if (!g) return;
-
-  const channel = client.channels.cache.get(g.channel_id);
-  if (!channel) return;
-
-  const participants = g.participants ? g.participants.split(',') : [];
-  if (participants.length === 0) {
-    channel.send(`🎉 Giveaway ended: **${g.prize}**\nNo valid entries.`);
-  } else {
-    const winners = [];
-    while (winners.length < g.winners && participants.length > 0) {
-      const i = Math.floor(Math.random() * participants.length);
-      winners.push(`<@${participants[i]}>`);
-      participants.splice(i, 1);
-    }
-    channel.send(`🎉 Giveaway ended: **${g.prize}**\nWinners: ${winners.join(', ')}`);
-  }
-
-  db.prepare("DELETE FROM giveaways WHERE message_id=?").run(msgId);
+if (cmd === '!stocks') {
+  const list = Object.entries(stocks)
+    .map(([name, data]) => `• ${name}: ${data.price} coins`)
+    .join('\n');
+  msg.channel.send(`📈 Current Stock Prices:\n${list}`);
 }
 
-// === [999] 🛡️ Error Handling ===
-process.on('unhandledRejection', err => {
-  console.error('🔥 Unhandled promise rejection:', err);
-});
+if (cmd === '!buy') {
+  const symbol = args[0]?.toUpperCase();
+  const amount = parseInt(args[1]);
+  if (!symbol || !stocks[symbol] || isNaN(amount)) return msg.reply("Usage: !buy [symbol] [amount]");
 
-process.on('uncaughtException', err => {
-  console.error('💥 Uncaught exception:', err);
-});
+  const cost = stocks[symbol].price * amount;
+  const bal = db.prepare("SELECT wallet FROM economy WHERE user_id=?").get(msg.author.id);
+  if (bal.wallet < cost) return msg.reply("You can't afford that!");
 
+  db.prepare("UPDATE economy SET wallet = wallet - ? WHERE user_id=?").run(cost, msg.author.id);
+  msg.channel.send(`${msg.author} bought ${amount} shares of ${symbol} for ${cost} coins.`);
+}
 
+// === [162] 🎁 Loot Box Drop ===
+if (cmd === '!lootbox') {
+  const loot = ['🧦 Cursed Sock', '🍌 Golden Banana', '📦 Mystery Box', '🥪 Epic Sandwich'];
+  const item = loot[Math.floor(Math.random() * loot.length)];
+  addItem(msg.author.id, item);
+  msg.channel.send(`${msg.author} opened a loot box and found a **${item}**! 🎉`);
+}
 
+// === [163] 🔥 Cursed Auction System ===
+if (cmd === '!auction') {
+  const item = args.join(' ');
+  if (!item) return msg.reply("Usage: !auction [item name]");
 
+  const embed = makeEmbed("🔥 Cursed Auction", `Item: **${item}**\nStarting bid: 100 coins\nReact with 💰 to bid!`);
+  const auctionMsg = await msg.channel.send({ embeds: [embed] });
+  await auctionMsg.react('💰');
 
+  setTimeout(() => {
+    msg.channel.send(`⏳ Auction for **${item}** has ended. Winner: TBD (feature coming soon!)`);
+  }, 30000); // 30s auction window
+}
