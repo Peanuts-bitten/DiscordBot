@@ -223,3 +223,7 @@ if (cmd === '!auction') {
     msg.channel.send(`⏳ Auction for **${item}** has ended. Winner: TBD (feature coming soon!)`);
   }, 30000); // 30s auction window
 }
+
+}); // closes client.on('messageCreate', ...)
+
+client.login(process.env.TOKEN); // logs in the bot
