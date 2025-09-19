@@ -199,8 +199,6 @@ if (cmd === '!clear') {
   msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
 }
 
-    msg.channel.send(`Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 5000));
-  }
 
   if (cmd === '!meme') {
     const res = await fetch('https://meme-api.com/gimme');
@@ -326,6 +324,7 @@ process.on('unhandledRejection', err => {
 process.on('uncaughtException', err => {
   console.error('💥 Uncaught exception:', err);
 });
+
 
 
 
