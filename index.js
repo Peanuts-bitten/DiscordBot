@@ -4,8 +4,8 @@ import {
   ActionRowBuilder
 } from 'discord.js';
 import { config } from 'dotenv';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import Database from 'better-sqlite3';
+const db = new Database('./data.db');
 import fetch from 'node-fetch';
 import { keepAlive } from './server.js';
 
@@ -283,3 +283,4 @@ client.on('messageCreate', async msg => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
