@@ -1,1 +1,2 @@
-web: python bot.py
+web: gunicorn server:app
+worker: node index.js
