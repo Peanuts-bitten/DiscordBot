@@ -4,7 +4,8 @@
   "description": "A full-featured Discord bot with economy, leveling, moderation, giveaways, and memes.",
   "main": "index.mjs",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server.js & node index.mjs",
+    "web": "node server.js",
     "bot": "node index.mjs"
   },
   "dependencies": {
