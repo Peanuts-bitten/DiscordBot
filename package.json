@@ -1,0 +1,23 @@
+{
+  "name": "chaos-core-bot",
+  "version": "1.0.0",
+  "description": "A full-featured Discord bot with economy, leveling, moderation, giveaways, and memes.",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "discord.js": "^14.11.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "better-sqlite3": "^8.6.0"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["discord", "bot", "economy", "leveling", "giveaways", "moderation"],
+  "author": "Rhea",
+  "license": "MIT"
+}

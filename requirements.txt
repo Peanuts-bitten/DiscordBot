@@ -1,0 +1,6 @@
+# This is a placeholder for platforms expecting Python dependencies
+# Actual bot runs on Node.js with Discord.js
+
+# Optional: keep-alive server (if using Python-based ping service)
+flask
+gunicorn

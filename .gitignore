@@ -1,0 +1,23 @@
+# Node.js
+node_modules/
+.env
+data.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Render/Heroku
+*.sqlite3
+*.db
+
+# Optional: lockfiles
+package-lock.json
+Pipfile.lock
